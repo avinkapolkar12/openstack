@@ -1,0 +1,60 @@
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: dummy-database-prod
+    environment:
+      POSTGRES_DB: dummydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: production_password_change_me
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - dummy-network-prod
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  server:
+    image: avinkapolkar/dummy-server:latest
+    container_name: dummy-server-prod
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=database
+      - DB_PORT=5432
+      - DB_NAME=dummydb
+      - DB_USER=postgres
+      - DB_PASSWORD=production_password_change_me
+    ports:
+      - "5000:5000"
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - dummy-network-prod
+    restart: unless-stopped
+
+  client:
+    image: avinkapolkar/dummy-client:latest
+    container_name: dummy-client-prod
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+    networks:
+      - dummy-network-prod
+    environment:
+      - REACT_APP_API_URL=http://10.0.2.15:5000
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  dummy-network-prod:
+    driver: bridge
